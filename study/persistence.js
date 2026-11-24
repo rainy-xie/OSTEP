@@ -1,0 +1,67 @@
+registerTrack('persistence', [
+  {
+    id: 'disk',
+    title: '机械磁盘',
+    summary: '一次读盘的时间花在寻道、等待盘片旋转和传输数据上。',
+    insight: '磁头先移到目标磁道，再等目标扇区转到磁头下方。连续读取同一磁道的相邻扇区时，读完前一个，磁头就能接着读下一个。',
+    question: '默认模拟中，读取扇区 10 需要 135 个时间单位，其中传输占 30。紧接着读相邻扇区 11，两次请求合计需要多久？',
+    answer: '165 个时间单位。第二次寻道和旋转等待都是 0，只增加 30 个单位的传输时间。',
+    resources: [
+      { path: 'homework/file-disks/README.md', label: '练习说明 · 磁头与扇区' },
+      { path: 'homework/file-disks/disk.py', label: '模拟器 · 磁盘请求' },
+    ],
+    command: 'python3 homework/file-disks/disk.py -a 10,11 -c',
+  },
+  {
+    id: 'raid',
+    title: 'RAID 阵列',
+    summary: '阵列把多个物理磁盘组织成一个可按逻辑块寻址的设备。',
+    insight: '条带化把连续的数据块分散到不同磁盘，镜像把同一块写到两块盘上。这次模拟把四块盘分成两对镜像，再把连续的逻辑块轮流放到这两对盘上。',
+    question: '第 0 块写到磁盘 0 和 1，第 1 块写到磁盘 2 和 3。写第 2 块时，会写哪两块盘？盘内偏移是多少？',
+    answer: '写磁盘 0 和 1，盘内偏移都是 1。第 2 块回到第一对镜像，偏移 0 已经存放了第 0 块的两份副本。',
+    resources: [
+      { path: 'homework/file-raid/README.md', label: '练习说明 · 阵列映射' },
+      { path: 'homework/file-raid/raid.py', label: '模拟器 · 逻辑块与物理盘' },
+    ],
+    command: 'python3 homework/file-raid/raid.py -L 1 -D 4 -W seq -n 3 -w 100 -c',
+  },
+  {
+    id: 'inode',
+    title: '目录与 inode',
+    summary: '沿着目录项找到 inode，再从 inode 找到存放文件内容的数据块。',
+    insight: '目录项保存名字和 inode 编号，inode 记录文件类型和数据块地址。创建硬链接会添加一个指向同一 inode 的名字，并增加该文件的链接计数。',
+    question: '文件 /y 占用一个数据块，链接计数为 1。根目录还有空间容纳新条目，执行 link("/y", "/m") 后，要新增几个 inode 和数据块？',
+    answer: '两者都新增 0 个。根目录多了名字 m，它和 y 都指向 inode 1。模拟输出中，链接计数 r 从 1 变成 2，两张分配位图保持原值。',
+    resources: [
+      { path: 'homework/file-implementation/README.md', label: '练习说明 · 读懂 inode 和位图' },
+      { path: 'homework/file-implementation/vsfs.py', label: '模拟器 · 跟踪文件操作' },
+    ],
+    command: 'python3 homework/file-implementation/vsfs.py -n 3 -s 16 -c',
+  },
+  {
+    id: 'crash-consistency',
+    title: '崩溃一致性',
+    summary: '一次文件操作可能更新多个磁盘块，中途断电会让这些记录互相矛盾。',
+    insight: '目录里用到的 inode 应当在位图中标为已分配，fsck 类工具会交叉核对这些记录。日志文件系统先把一组更新写入日志，恢复时可以重放已经提交的事务。',
+    question: '根目录保留着条目 (m, 13)，inode 13 也有内容，但 inode 位图的第 13 位是 0。检查器会发现什么矛盾？',
+    answer: '目录正在使用 inode 13，位图却把它记为空闲。若分配器再次把编号 13 交给新文件，旧名字 m 可能指向错误的文件。',
+    resources: [
+      { path: 'homework/file-journaling/README.md', label: '练习说明 · 在磁盘状态里找矛盾' },
+      { path: 'projects/filesystems-checker/README.md', label: '项目 · 编写 xv6 文件系统检查器' },
+    ],
+    command: 'python3 homework/file-journaling/fsck.py -S 1 -c',
+  },
+  {
+    id: 'ssd',
+    title: 'SSD 地址映射',
+    summary: '闪存按页写入、按块擦除，同一个逻辑页可以先后落在不同物理页。',
+    insight: '日志式 SSD 将新版本写到另一个已擦除的页，再更新闪存转换层（FTL）的映射。旧版本暂时留在原处，垃圾回收时才会随整块擦除。',
+    question: '向逻辑页 10 写入 a，再向同一页写入 b。此时模拟器仍显示两个字符，为什么读取页 10 只会得到 b？',
+    answer: 'FTL 已把逻辑页 10 从物理页 0 改指物理页 1，读取沿着新映射找到 b。物理页 0 还保存着 a，但已经没有有效映射指向它。',
+    resources: [
+      { path: 'homework/file-ssd/README.md', label: '练习说明 · 闪存转换层' },
+      { path: 'homework/file-ssd/ssd.py', label: '模拟器 · 观察页面映射变化' },
+    ],
+    command: 'python3 homework/file-ssd/ssd.py -T log -L w10:a,w10:b,r10 -l 30 -B 3 -p 10 -C -F',
+  },
+]);
